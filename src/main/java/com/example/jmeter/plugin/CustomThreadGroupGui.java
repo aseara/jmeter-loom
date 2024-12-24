@@ -21,9 +21,12 @@ import org.apache.jmeter.util.JMeterUtils;
 
 import java.awt.event.ItemEvent;
 import java.awt.event.ItemListener;
+import java.io.Serial;
+
 import net.miginfocom.swing.MigLayout;
 
 public class CustomThreadGroupGui extends AbstractThreadGroupGui implements ItemListener {
+    @Serial
     private static final long serialVersionUID = 240L;
     private LoopControlPanel loopPanel;
     private static final String THREAD_NAME = "Thread Field";
@@ -64,7 +67,8 @@ public class CustomThreadGroupGui extends AbstractThreadGroupGui implements Item
     }
 
     public void modifyTestElement(TestElement tg) {
-        super.configureTestElement(tg);
+//        super.configureTestElement(tg);
+        super.modifyTestElement(tg);
         if (tg instanceof AbstractThreadGroup) {
             ((AbstractThreadGroup)tg).setSamplerController((LoopController)this.loopPanel.createTestElement());
         }

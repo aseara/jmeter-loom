@@ -27,13 +27,13 @@ import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
 import java.io.ObjectInputStream;
-import java.util.Iterator;
-import java.util.Map;
+import java.io.Serial;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.locks.ReentrantLock;
 
 public class CustomThreadGroup extends AbstractThreadGroup {
+    @Serial
     private static final long serialVersionUID = 282L;
     private static final Logger log = LoggerFactory.getLogger(CustomThreadGroup.class);
     private static final long WAIT_TO_DIE;
@@ -44,8 +44,8 @@ public class CustomThreadGroup extends AbstractThreadGroup {
     public static final String DURATION = "ThreadGroup.duration";
     public static final String DELAY = "ThreadGroup.delay";
     private transient Thread threadStarter;
-    private final ConcurrentHashMap<JMeterThread, Thread> allThreads = new ConcurrentHashMap();
-    private transient ReentrantLock addThreadLock = new ReentrantLock();
+    private final ConcurrentHashMap<JMeterThread, Thread> allThreads = new ConcurrentHashMap<>();
+    private final transient ReentrantLock addThreadLock = new ReentrantLock();
     private volatile boolean running = false;
     private int groupNumber;
     private boolean delayedStartup;
@@ -55,44 +55,45 @@ public class CustomThreadGroup extends AbstractThreadGroup {
     public CustomThreadGroup() {
     }
 
+    @NotNull
     public ThreadGroupSchema getSchema() {
         return ThreadGroupSchema.INSTANCE;
     }
 
     public @NotNull PropertiesAccessor<? extends CustomThreadGroup, ? extends ThreadGroupSchema> getProps() {
-        return new PropertiesAccessor(this, this.getSchema());
+        return new PropertiesAccessor<>(this, this.getSchema());
     }
 
     public void setScheduler(boolean scheduler) {
-        this.setProperty(new BooleanProperty("ThreadGroup.scheduler", scheduler));
+        this.setProperty(new BooleanProperty(SCHEDULER, scheduler));
     }
 
     public boolean getScheduler() {
-        return this.getPropertyAsBoolean("ThreadGroup.scheduler");
+        return this.getPropertyAsBoolean(SCHEDULER);
     }
 
     public long getDuration() {
-        return this.getPropertyAsLong("ThreadGroup.duration");
+        return this.getPropertyAsLong(DURATION);
     }
 
     public void setDuration(long duration) {
-        this.setProperty(new LongProperty("ThreadGroup.duration", duration));
+        this.setProperty(new LongProperty(DURATION, duration));
     }
 
     public long getDelay() {
-        return this.getPropertyAsLong("ThreadGroup.delay");
+        return this.getPropertyAsLong(DELAY);
     }
 
     public void setDelay(long delay) {
-        this.setProperty(new LongProperty("ThreadGroup.delay", delay));
+        this.setProperty(new LongProperty(DELAY, delay));
     }
 
     public void setRampUp(int rampUp) {
-        this.setProperty(new IntegerProperty("ThreadGroup.ramp_time", rampUp));
+        this.setProperty(new IntegerProperty(RAMP_TIME, rampUp));
     }
 
     public int getRampUp() {
-        return this.getPropertyAsInt("ThreadGroup.ramp_time");
+        return this.getPropertyAsInt(RAMP_TIME);
     }
 
     private boolean isDelayedStartup() {
@@ -123,9 +124,8 @@ public class CustomThreadGroup extends AbstractThreadGroup {
         int numThreads = this.getNumThreads();
         int rampUpPeriodInSeconds = this.getRampUp();
         this.delayedStartup = this.isDelayedStartup();
-        log.info("Starting thread group... number={} threads={} ramp-up={} delayedStart={}", new Object[]{this.groupNumber, numThreads, rampUpPeriodInSeconds, this.delayedStartup});
+        log.info("Starting thread group... number={} threads={} ramp-up={} delayedStart={}", this.groupNumber, numThreads, rampUpPeriodInSeconds, this.delayedStartup);
         if (this.delayedStartup) {
-//          this.threadStarter = new Thread(new CustomThreadGroup.ThreadStarter(notifier, threadGroupTree, engine), this.getName() + "-ThreadStarter");
             this.threadStarter = Thread.ofVirtual().unstarted(new CustomThreadGroup.ThreadStarter(notifier, threadGroupTree, engine));
             this.threadStarter.setName(this.getName() + "-ThreadStarter");
             this.threadStarter.setDaemon(true);
@@ -144,7 +144,7 @@ public class CustomThreadGroup extends AbstractThreadGroup {
                 }
 
                 if (log.isDebugEnabled()) {
-                    log.debug("Computed delayForNextThreadInMillis:{} for thread:{}", delayForNextThreadInMillis, Thread.currentThread().getId());
+                    log.debug("Computed delayForNextThreadInMillis:{} for thread:{}", delayForNextThreadInMillis, Thread.currentThread().threadId());
                 }
 
                 lastThreadStartInMillis = nowInMillis;
@@ -159,7 +159,6 @@ public class CustomThreadGroup extends AbstractThreadGroup {
         JMeterThread jmThread = this.makeThread(engine, this, notifier, this.groupNumber, threadNum, cloneTree(threadGroupTree), variables);
         this.scheduleThread(jmThread, now);
         jmThread.setInitialDelay(delay);
-//      Thread newThread = new Thread(jmThread, jmThread.getThreadName());
         Thread newThread = Thread.ofVirtual().unstarted(jmThread);
         newThread.setName(jmThread.getThreadName());
         this.registerStartedThread(jmThread, newThread);
@@ -167,9 +166,9 @@ public class CustomThreadGroup extends AbstractThreadGroup {
         return jmThread;
     }
 
+    @Serial
     private void readObject(ObjectInputStream in) throws IOException, ClassNotFoundException {
         in.defaultReadObject();
-        //this.addThreadLock = new Object();
     }
 
     private void registerStartedThread(JMeterThread jMeterThread, Thread newThread) {
@@ -180,10 +179,6 @@ public class CustomThreadGroup extends AbstractThreadGroup {
         long now = System.currentTimeMillis();
         JMeterContext context = JMeterContextService.getContext();
         int numThreads;
-//        synchronized(this.addThreadLock) {
-//            numThreads = this.getNumThreads();
-//            this.setNumThreads(numThreads + 1);
-//        }
         try {
             addThreadLock.lock();
             numThreads = this.getNumThreads();
@@ -199,21 +194,14 @@ public class CustomThreadGroup extends AbstractThreadGroup {
     }
 
     public boolean stopThread(String threadName, boolean now) {
-        Iterator var3 = this.allThreads.entrySet().iterator();
-
-        Map.Entry threadEntry;
-        JMeterThread jMeterThread;
-        do {
-            if (!var3.hasNext()) {
-                return false;
+        final boolean[] stopped = {false};
+        this.allThreads.forEach((jmThread, jvmThread) -> {
+            if (jmThread.getThreadName().equals(threadName)) {
+                stopThread(jmThread, jvmThread, now);
+                stopped[0] = true;
             }
-
-            threadEntry = (Map.Entry)var3.next();
-            jMeterThread = (JMeterThread)threadEntry.getKey();
-        } while(!jMeterThread.getThreadName().equals(threadName));
-
-        stopThread(jMeterThread, (Thread)threadEntry.getValue(), now);
-        return true;
+        });
+        return stopped[0];
     }
 
     private static void stopThread(JMeterThread jmeterThread, Thread jvmThread, boolean interrupt) {
@@ -243,9 +231,7 @@ public class CustomThreadGroup extends AbstractThreadGroup {
             }
         }
 
-        this.allThreads.forEach((key, value) -> {
-            stopThread(key, value, now);
-        });
+        this.allThreads.forEach((key, value) -> stopThread(key, value, now));
     }
 
     public void tellThreadsToStop() {
@@ -276,21 +262,14 @@ public class CustomThreadGroup extends AbstractThreadGroup {
         }
 
         if (stoppedAll) {
-            Iterator var2 = this.allThreads.values().iterator();
-
-            Thread t;
-            do {
-                if (!var2.hasNext()) {
-                    return true;
+            for (Thread tt : this.allThreads.values()) {
+                if (!verifyThreadStopped(tt)) {
+                    stoppedAll = false;
+                    break;
                 }
-
-                t = (Thread)var2.next();
-            } while(verifyThreadStopped(t));
-
-            return false;
-        } else {
-            return false;
+            }
         }
+        return stoppedAll;
     }
 
     private static boolean verifyThreadStopped(Thread thread) {
@@ -370,7 +349,7 @@ public class CustomThreadGroup extends AbstractThreadGroup {
                 long end = start + delay;
 
                 long now;
-                for(long pause = (long)CustomThreadGroup.RAMPUP_GRANULARITY; CustomThreadGroup.this.running && (now = System.currentTimeMillis()) < end; this.pause(pause)) {
+                for(long pause = CustomThreadGroup.RAMPUP_GRANULARITY; CustomThreadGroup.this.running && (now = System.currentTimeMillis()) < end; this.pause(pause)) {
                     long togo = end - now;
                     if (togo < pause) {
                         pause = togo;
@@ -404,7 +383,7 @@ public class CustomThreadGroup extends AbstractThreadGroup {
                     if (threadNumber > 0) {
                         long elapsedInMillis = System.currentTimeMillis() - startTimeInMillis;
                         int perThreadDelayInMillis = Math.round((rampUpOriginInMillis - (float)elapsedInMillis) / (float)(numThreads - threadNumber));
-                        this.pause((long)Math.max(0, perThreadDelayInMillis));
+                        this.pause(Math.max(0, perThreadDelayInMillis));
                     }
 
                     if (usingScheduler && System.currentTimeMillis() > endtime) {

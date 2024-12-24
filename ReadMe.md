@@ -1,7 +1,7 @@
 
-# JMeter Virtual Thread Group Plugin 
+# JMeter Virtual Thread Group Plugin
 
-> Run 50k threads/users under 2.5G ..!! 
+> Run 50k threads/users under 2.5G ..!!
 
 This is a quick demonstration of using Java 21 Virtual threads for JMeter, which is a game changer for JMeter. Using virtual threads, we can reduce resource usage dramatically, and a single client would be able to put more load with very low memory usage."
 
@@ -15,7 +15,7 @@ This is a quick demonstration of using Java 21 Virtual threads for JMeter, which
 
 Single Client Handling More Load: With virtual threads, a single JMeter client (the machine running JMeter) can simulate a higher load on the target server or application. This is because virtual threads are lightweight and consume fewer resources, allowing a single JMeter instance to generate more concurrent requests without overloading the system.
 
-**Low Memory Usage**: Traditional threads can be memory-intensive, especially when you have a large number of concurrent users in a JMeter test. Virtual threads, being lightweight, use significantly less memory. This is particularly beneficial when running JMeter on machines with limited RAM. 
+**Low Memory Usage**: Traditional threads can be memory-intensive, especially when you have a large number of concurrent users in a JMeter test. Virtual threads, being lightweight, use significantly less memory. This is particularly beneficial when running JMeter on machines with limited RAM.
 
 ## Dependencies
 
@@ -29,11 +29,11 @@ As of now the compatibility for this plugin has been tested to work for JMeter 5
 
 ### Operating system
 
-Available version [v1.0](https://github.com/nirmal-mewada/jmeter-loom/releases/tag/v1) is working under MacOS with M1 chip. To be able to use it under windows please compile the source code under Windows with your desired architecture (x86 or x64). 
+Available version [v1.0](https://github.com/nirmal-mewada/jmeter-loom/releases/tag/v1) is working under MacOS with M1 chip. To be able to use it under windows please compile the source code under Windows with your desired architecture (x86 or x64).
 
 This code has been also tested to work using Windows 10 Pro x64.
 
-**Note:** Unofficial Windows version can be found [here](https://github.com/nirmal-mewada/jmeter-loom/files/13391040/virtual-thread-group-plugin-1.0-SNAPSHOT.zip) 
+**Note:** Unofficial Windows version can be found [here](https://github.com/nirmal-mewada/jmeter-loom/files/13391040/virtual-thread-group-plugin-1.0-SNAPSHOT.zip)
 
 ## Building from Source (Optional)
 
@@ -70,11 +70,11 @@ To use this JMeter plugin, follow these steps:
 
 5. Add **Virtual Thread Group** element
 ![Alt Text](screenshots/Menu.png)
-6. Configure Threads. You will see title Virtual Thread Properties header for right thread group. 
+6. Configure Threads. You will see title Virtual Thread Properties header for right thread group.
 ![Alt Text](screenshots/ThreadProps.png)
-7. I employed a local Nginx server that responds with a 200 status code. My primary goal was to observe Jmeter's behavior without focusing on errors. See [nginx.conf](nginx.conf)
+7. I employed a local Nginx server that responds with a 200 status code. My primary goal was to observe Jmeter's behavior without focusing on errors. See [nginx.conf](examples/nginx.conf)
    ```markdown
-   # nginx.conf 
+   # nginx.conf
    location /test {
        return 200 'OK';
     }
@@ -85,7 +85,7 @@ To use this JMeter plugin, follow these steps:
 
 
 ### Warning: Thread Pinning
-While this may have a Java-specific context, it's crucial to remember that any sampler component, element, or listener utilizing synchronized blocks or native JNI calls can lead to what's known as Thread pinning. In such cases, Virtual threads may not scale effectively due to a limited number of OS threads, potentially resulting in inconsistent or abnormal behavior.     
+While this may have a Java-specific context, it's crucial to remember that any sampler component, element, or listener utilizing synchronized blocks or native JNI calls can lead to what's known as Thread pinning. In such cases, Virtual threads may not scale effectively due to a limited number of OS threads, potentially resulting in inconsistent or abnormal behavior.
 
 ## Contribution
 
@@ -97,13 +97,13 @@ Apache-License
 License
 =======
     Copyright 2023 Nirmal Suthar
-    
+
     Licensed under the Apache License, Version 2.0 (the "License");
     you may not use this file except in compliance with the License.
     You may obtain a copy of the License at
-    
+
        http://www.apache.org/licenses/LICENSE-2.0
-    
+
     Unless required by applicable law or agreed to in writing, software
     distributed under the License is distributed on an "AS IS" BASIS,
     WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
