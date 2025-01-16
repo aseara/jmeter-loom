@@ -6,9 +6,6 @@
 package com.example.jmeter.plugin;
 
 import org.apache.jmeter.engine.StandardJMeterEngine;
-import org.apache.jmeter.testelement.property.BooleanProperty;
-import org.apache.jmeter.testelement.property.IntegerProperty;
-import org.apache.jmeter.testelement.property.LongProperty;
 import org.apache.jmeter.testelement.schema.PropertiesAccessor;
 import org.apache.jmeter.threads.AbstractThreadGroup;
 import org.apache.jmeter.threads.JMeterContext;
@@ -18,7 +15,6 @@ import org.apache.jmeter.threads.JMeterVariables;
 import org.apache.jmeter.threads.ListenerNotifier;
 
 import org.apache.jmeter.threads.ThreadGroupSchema;
-import org.apache.jmeter.util.JMeterUtils;
 import org.apache.jorphan.collections.ListedHashTree;
 import org.apache.jorphan.util.JMeterStopTestException;
 import org.jetbrains.annotations.NotNull;
@@ -29,7 +25,6 @@ import java.io.IOException;
 import java.io.ObjectInputStream;
 import java.io.Serial;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.TimeUnit;
 import java.util.concurrent.locks.ReentrantLock;
 
 public class CustomThreadGroup extends AbstractThreadGroup {
@@ -37,18 +32,14 @@ public class CustomThreadGroup extends AbstractThreadGroup {
     private static final long serialVersionUID = 282L;
     private static final Logger log = LoggerFactory.getLogger(CustomThreadGroup.class);
     private static final long WAIT_TO_DIE;
-    private static final int RAMPUP_GRANULARITY;
     public static final String RAMP_TIME = "ThreadGroup.ramp_time";
-    public static final String DELAYED_START = "ThreadGroup.delayedStart";
     public static final String SCHEDULER = "ThreadGroup.scheduler";
     public static final String DURATION = "ThreadGroup.duration";
     public static final String DELAY = "ThreadGroup.delay";
-    private transient Thread threadStarter;
     private final ConcurrentHashMap<JMeterThread, Thread> allThreads = new ConcurrentHashMap<>();
     private final transient ReentrantLock addThreadLock = new ReentrantLock();
     private volatile boolean running = false;
     private int groupNumber;
-    private boolean delayedStartup;
     private ListenerNotifier notifier;
     private ListedHashTree threadGroupTree;
 
@@ -64,10 +55,6 @@ public class CustomThreadGroup extends AbstractThreadGroup {
         return new PropertiesAccessor<>(this, this.getSchema());
     }
 
-    public void setScheduler(boolean scheduler) {
-        this.setProperty(new BooleanProperty(SCHEDULER, scheduler));
-    }
-
     public boolean getScheduler() {
         return this.getPropertyAsBoolean(SCHEDULER);
     }
@@ -76,28 +63,12 @@ public class CustomThreadGroup extends AbstractThreadGroup {
         return this.getPropertyAsLong(DURATION);
     }
 
-    public void setDuration(long duration) {
-        this.setProperty(new LongProperty(DURATION, duration));
-    }
-
     public long getDelay() {
         return this.getPropertyAsLong(DELAY);
     }
 
-    public void setDelay(long delay) {
-        this.setProperty(new LongProperty(DELAY, delay));
-    }
-
-    public void setRampUp(int rampUp) {
-        this.setProperty(new IntegerProperty(RAMP_TIME, rampUp));
-    }
-
     public int getRampUp() {
         return this.getPropertyAsInt(RAMP_TIME);
-    }
-
-    private boolean isDelayedStartup() {
-        return this.get(this.getSchema().getDelayedStart());
     }
 
     private void scheduleThread(JMeterThread thread, long now) {
@@ -123,33 +94,26 @@ public class CustomThreadGroup extends AbstractThreadGroup {
         this.threadGroupTree = threadGroupTree;
         int numThreads = this.getNumThreads();
         int rampUpPeriodInSeconds = this.getRampUp();
-        this.delayedStartup = this.isDelayedStartup();
-        log.info("Starting thread group... number={} threads={} ramp-up={} delayedStart={}", this.groupNumber, numThreads, rampUpPeriodInSeconds, this.delayedStartup);
-        if (this.delayedStartup) {
-            this.threadStarter = Thread.ofVirtual().unstarted(new CustomThreadGroup.ThreadStarter(notifier, threadGroupTree, engine));
-            this.threadStarter.setName(this.getName() + "-ThreadStarter");
-            this.threadStarter.setDaemon(true);
-            this.threadStarter.start();
-        } else {
-            JMeterVariables variables = JMeterContextService.getContext().getVariables();
-            long lastThreadStartInMillis = 0L;
-            int delayForNextThreadInMillis = 0;
-            int perThreadDelayInMillis = Math.round((float)rampUpPeriodInSeconds * 1000.0F / (float)numThreads);
+        log.info("Starting thread group... number={} threads={} ramp-up={}", this.groupNumber, numThreads, rampUpPeriodInSeconds);
 
-            for(int threadNum = 0; this.running && threadNum < numThreads; ++threadNum) {
-                long nowInMillis = System.currentTimeMillis();
-                if (threadNum > 0) {
-                    long timeElapsedToStartLastThread = nowInMillis - lastThreadStartInMillis;
-                    delayForNextThreadInMillis = (int)((long)delayForNextThreadInMillis + ((long)perThreadDelayInMillis - timeElapsedToStartLastThread));
-                }
+        JMeterVariables variables = JMeterContextService.getContext().getVariables();
+        long lastThreadStartInMillis = 0L;
+        int delayForNextThreadInMillis = 0;
+        int perThreadDelayInMillis = Math.round((float)rampUpPeriodInSeconds * 1000.0F / (float)numThreads);
 
-                if (log.isDebugEnabled()) {
-                    log.debug("Computed delayForNextThreadInMillis:{} for thread:{}", delayForNextThreadInMillis, Thread.currentThread().threadId());
-                }
-
-                lastThreadStartInMillis = nowInMillis;
-                this.startNewThread(notifier, threadGroupTree, engine, threadNum, variables, nowInMillis, Math.max(0, delayForNextThreadInMillis));
+        for(int threadNum = 0; this.running && threadNum < numThreads; ++threadNum) {
+            long nowInMillis = System.currentTimeMillis();
+            if (threadNum > 0) {
+                long timeElapsedToStartLastThread = nowInMillis - lastThreadStartInMillis;
+                delayForNextThreadInMillis = (int)((long)delayForNextThreadInMillis + ((long)perThreadDelayInMillis - timeElapsedToStartLastThread));
             }
+
+            if (log.isDebugEnabled()) {
+                log.debug("Computed delayForNextThreadInMillis:{} for thread:{}", delayForNextThreadInMillis, Thread.currentThread().threadId());
+            }
+
+            lastThreadStartInMillis = nowInMillis;
+            this.startNewThread(notifier, threadGroupTree, engine, threadNum, variables, nowInMillis, Math.max(0, delayForNextThreadInMillis));
         }
 
         log.info("Started thread group number {}", this.groupNumber);
@@ -217,20 +181,11 @@ public class CustomThreadGroup extends AbstractThreadGroup {
         if (log.isDebugEnabled()) {
             log.debug("Ending thread {}", thread.getThreadName());
         }
-
         this.allThreads.remove(thread);
     }
 
     public void tellThreadsToStop(boolean now) {
         this.running = false;
-        if (this.delayedStartup) {
-            try {
-                this.threadStarter.interrupt();
-            } catch (Exception var3) {
-                log.warn("Exception occurred interrupting ThreadStarter", var3);
-            }
-        }
-
         this.allThreads.forEach((key, value) -> stopThread(key, value, now));
     }
 
@@ -240,14 +195,6 @@ public class CustomThreadGroup extends AbstractThreadGroup {
 
     public void stop() {
         this.running = false;
-        if (this.delayedStartup) {
-            try {
-                this.threadStarter.interrupt();
-            } catch (Exception var2) {
-                log.warn("Exception occurred interrupting ThreadStarter", var2);
-            }
-        }
-
         this.allThreads.keySet().forEach(JMeterThread::stop);
     }
 
@@ -257,16 +204,10 @@ public class CustomThreadGroup extends AbstractThreadGroup {
 
     public boolean verifyThreadsStopped() {
         boolean stoppedAll = true;
-        if (this.delayedStartup) {
-            stoppedAll = verifyThreadStopped(this.threadStarter);
-        }
-
-        if (stoppedAll) {
-            for (Thread tt : this.allThreads.values()) {
-                if (!verifyThreadStopped(tt)) {
-                    stoppedAll = false;
-                    break;
-                }
+        for (Thread tt : this.allThreads.values()) {
+            if (!verifyThreadStopped(tt)) {
+                stoppedAll = false;
+                break;
             }
         }
         return stoppedAll;
@@ -293,10 +234,6 @@ public class CustomThreadGroup extends AbstractThreadGroup {
     }
 
     public void waitThreadsStopped() {
-        if (this.delayedStartup) {
-            waitThreadStopped(this.threadStarter);
-        }
-
         while(!this.allThreads.isEmpty()) {
             this.allThreads.values().forEach(CustomThreadGroup::waitThreadStopped);
         }
@@ -318,94 +255,5 @@ public class CustomThreadGroup extends AbstractThreadGroup {
 
     static {
         WAIT_TO_DIE = DEFAULT_THREAD_STOP_TIMEOUT.toMillis();
-        RAMPUP_GRANULARITY = JMeterUtils.getPropDefault("jmeterthread.rampup.granularity", 1000);
-    }
-
-    class ThreadStarter implements Runnable {
-        private final ListenerNotifier notifier;
-        private final ListedHashTree threadGroupTree;
-        private final StandardJMeterEngine engine;
-        private final JMeterVariables variables;
-
-        public ThreadStarter(ListenerNotifier notifier, ListedHashTree threadGroupTree, StandardJMeterEngine engine) {
-            this.notifier = notifier;
-            this.threadGroupTree = threadGroupTree;
-            this.engine = engine;
-            this.variables = JMeterContextService.getContext().getVariables();
-        }
-
-        private void pause(long ms) {
-            try {
-                TimeUnit.MILLISECONDS.sleep(ms);
-            } catch (InterruptedException var4) {
-                Thread.currentThread().interrupt();
-            }
-
-        }
-
-        private void delayBy(long delay) {
-            if (delay > 0L) {
-                long start = System.currentTimeMillis();
-                long end = start + delay;
-
-                long now;
-                for(long pause = CustomThreadGroup.RAMPUP_GRANULARITY; CustomThreadGroup.this.running && (now = System.currentTimeMillis()) < end; this.pause(pause)) {
-                    long togo = end - now;
-                    if (togo < pause) {
-                        pause = togo;
-                    }
-                }
-            }
-
-        }
-
-        public void run() {
-            try {
-                JMeterContextService.getContext().setVariables(this.variables);
-                long endtime = 0L;
-                boolean usingScheduler = CustomThreadGroup.this.getScheduler();
-                if (usingScheduler) {
-                    if (CustomThreadGroup.this.getDelay() > 0L) {
-                        this.delayBy(CustomThreadGroup.this.getDelay() * 1000L);
-                    }
-
-                    endtime = CustomThreadGroup.this.getDuration();
-                    if (endtime > 0L) {
-                        endtime = endtime * 1000L + System.currentTimeMillis();
-                    }
-                }
-
-                int numThreads = CustomThreadGroup.this.getNumThreads();
-                float rampUpOriginInMillis = (float)CustomThreadGroup.this.getRampUp() * 1000.0F;
-                long startTimeInMillis = System.currentTimeMillis();
-
-                for(int threadNumber = 0; CustomThreadGroup.this.running && threadNumber < numThreads; ++threadNumber) {
-                    if (threadNumber > 0) {
-                        long elapsedInMillis = System.currentTimeMillis() - startTimeInMillis;
-                        int perThreadDelayInMillis = Math.round((rampUpOriginInMillis - (float)elapsedInMillis) / (float)(numThreads - threadNumber));
-                        this.pause(Math.max(0, perThreadDelayInMillis));
-                    }
-
-                    if (usingScheduler && System.currentTimeMillis() > endtime) {
-                        break;
-                    }
-
-                    JMeterThread jmThread = CustomThreadGroup.this.makeThread(this.engine, CustomThreadGroup.this, this.notifier, CustomThreadGroup.this.groupNumber, threadNumber, AbstractThreadGroup.cloneTree(this.threadGroupTree), this.variables);
-                    jmThread.setInitialDelay(0);
-                    if (usingScheduler) {
-                        jmThread.setScheduled(true);
-                        jmThread.setEndTime(endtime);
-                    }
-
-                    Thread newThread = new Thread(jmThread, jmThread.getThreadName());
-                    newThread.setDaemon(false);
-                    CustomThreadGroup.this.registerStartedThread(jmThread, newThread);
-                    newThread.start();
-                }
-            } catch (Exception var12) {
-                CustomThreadGroup.log.error("An error occurred scheduling delay start of threads for Thread Group: {}", CustomThreadGroup.this.getName(), var12);
-            }
-
-        }
     }
 }

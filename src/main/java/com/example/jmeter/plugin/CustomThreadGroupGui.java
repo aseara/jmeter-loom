@@ -15,7 +15,6 @@ import org.apache.jmeter.testelement.TestElement;
 import org.apache.jmeter.testelement.property.BooleanProperty;
 import org.apache.jmeter.threads.AbstractThreadGroup;
 import org.apache.jmeter.threads.AbstractThreadGroupSchema;
-import org.apache.jmeter.threads.ThreadGroupSchema;
 import org.apache.jmeter.threads.gui.AbstractThreadGroupGui;
 import org.apache.jmeter.util.JMeterUtils;
 
@@ -29,12 +28,8 @@ public class CustomThreadGroupGui extends AbstractThreadGroupGui implements Item
     @Serial
     private static final long serialVersionUID = 240L;
     private LoopControlPanel loopPanel;
-    private static final String THREAD_NAME = "Thread Field";
-    private static final String RAMP_NAME = "Ramp Up Field";
     private final JTextField threadInput;
     private final JTextField rampInput;
-    private final boolean showDelayedStart;
-    private JBooleanPropertyEditor delayedStart;
     private final JCheckBox scheduler;
     private final JTextField duration;
     private final JLabel durationLabel;
@@ -43,10 +38,6 @@ public class CustomThreadGroupGui extends AbstractThreadGroupGui implements Item
     private final JBooleanPropertyEditor sameUserBox;
 
     public CustomThreadGroupGui() {
-        this(true);
-    }
-
-    public CustomThreadGroupGui(boolean showDelayedStart) {
         this.threadInput = new JTextField();
         this.rampInput = new JTextField();
         this.scheduler = new JCheckBox(JMeterUtils.getResString("scheduler"));
@@ -55,7 +46,6 @@ public class CustomThreadGroupGui extends AbstractThreadGroupGui implements Item
         this.delay = new JTextField();
         this.delayLabel = JMeterUtils.labelFor(this.delay, "delay");
         this.sameUserBox = new JBooleanPropertyEditor(AbstractThreadGroupSchema.INSTANCE.getSameUserOnNextIteration(), JMeterUtils.getResString("threadgroup_same_user"));
-        this.showDelayedStart = showDelayedStart;
         this.init();
         this.initGui();
     }
@@ -75,9 +65,6 @@ public class CustomThreadGroupGui extends AbstractThreadGroupGui implements Item
 
         tg.set(AbstractThreadGroupSchema.INSTANCE.getNumThreads(), this.threadInput.getText());
         tg.setProperty("ThreadGroup.ramp_time", this.rampInput.getText());
-        if (this.showDelayedStart) {
-            this.delayedStart.updateElement(tg);
-        }
 
         tg.setProperty(new BooleanProperty("ThreadGroup.scheduler", this.scheduler.isSelected()));
         tg.setProperty("ThreadGroup.duration", this.duration.getText());
@@ -90,9 +77,6 @@ public class CustomThreadGroupGui extends AbstractThreadGroupGui implements Item
         this.threadInput.setText(tg.getString(AbstractThreadGroupSchema.INSTANCE.getNumThreads()));
         this.rampInput.setText(tg.getPropertyAsString("ThreadGroup.ramp_time"));
         this.loopPanel.configure((TestElement)tg.getProperty("ThreadGroup.main_controller").getObjectValue());
-        if (this.showDelayedStart) {
-            this.delayedStart.updateUi(tg);
-        }
 
         this.scheduler.setSelected(tg.getPropertyAsBoolean("ThreadGroup.scheduler"));
         this.toggleSchedulerFields(this.scheduler.isSelected());
@@ -136,9 +120,6 @@ public class CustomThreadGroupGui extends AbstractThreadGroupGui implements Item
         this.threadInput.setText("1");
         this.rampInput.setText("1");
         this.loopPanel.clearGui();
-        if (this.showDelayedStart) {
-            this.delayedStart.reset();
-        }
 
         this.scheduler.setSelected(false);
         this.delay.setText("");
@@ -160,10 +141,6 @@ public class CustomThreadGroupGui extends AbstractThreadGroupGui implements Item
         threadPropsPanel.add(loopController.getInfinite(), "gapleft push");
         threadPropsPanel.add(loopController.getLoops());
         threadPropsPanel.add(this.sameUserBox, "span 2");
-        if (this.showDelayedStart) {
-            this.delayedStart = new JBooleanPropertyEditor(ThreadGroupSchema.INSTANCE.getDelayedStart(), JMeterUtils.getResString("delayed_start"));
-            threadPropsPanel.add(this.delayedStart, "span 2");
-        }
 
         this.scheduler.addItemListener(this);
         threadPropsPanel.add(this.scheduler, "span 2");
